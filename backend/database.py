@@ -1,9 +1,7 @@
 import os
 import uuid
-import socket
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from urllib.parse import urlparse
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
@@ -24,27 +22,10 @@ if not SUPABASE_DB_URL:
 
 
 def get_db_connection() -> psycopg2.extensions.connection:
-    """Open a fresh PostgreSQL connection, forcing IPv4. Raises HTTPException 503 if it fails."""
+    """Open a fresh PostgreSQL connection. Raises HTTPException 503 if it fails."""
     try:
-        parsed = urlparse(SUPABASE_DB_URL)
-        hostname = parsed.hostname
-        port = parsed.port or 5432
-
-        # Resolve hostname to IPv4 to avoid IPv6 issues on some networks
-        ipv4_address = socket.getaddrinfo(hostname, port, socket.AF_INET)[0][4][0]
-
-        conn = psycopg2.connect(
-            host=ipv4_address,
-            port=port,
-            dbname=parsed.path.lstrip("/"),
-            user=parsed.username,
-            password=parsed.password,
-            sslmode="require",
-            cursor_factory=RealDictCursor,
-        )
+        conn = psycopg2.connect(SUPABASE_DB_URL, cursor_factory=RealDictCursor)
         return conn
-    except HTTPException:
-        raise
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
