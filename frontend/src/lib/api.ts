@@ -60,7 +60,7 @@ export async function loginUser(username: string, password: string, role: 'user'
     return data;
   } catch (err: any) {
     if (err.message === 'Failed to fetch' || err.name === 'TypeError') {
-      throw new Error('Unable to connect to backend server. Please ensure FastAPI server is running on http://localhost:8000.');
+      throw new Error(`Unable to connect to backend server (${API_BASE_URL}). Please ensure backend is running and accessible.`);
     }
     throw err;
   }
@@ -81,7 +81,7 @@ export async function signUpUser(username: string, password: string): Promise<Au
     return data;
   } catch (err: any) {
     if (err.message === 'Failed to fetch' || err.name === 'TypeError') {
-      throw new Error('Unable to connect to backend server. Please ensure FastAPI server is running on http://localhost:8000.');
+      throw new Error(`Unable to connect to backend server (${API_BASE_URL}). Please ensure backend is running and accessible.`);
     }
     throw err;
   }
