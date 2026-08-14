@@ -1,9 +1,14 @@
 from pydantic import BaseModel, Field
 from typing import Optional, Dict
 
-class LoginRequest(BaseModel):
+class SignUpRequest(BaseModel):
     username: str = Field(..., example="john_doe")
-    role: str = Field(..., example="user")  # 'user' or 'admin'
+    password: str = Field(..., example="password123")
+
+class LoginRequest(BaseModel):
+    username: str = Field(..., example="admin")
+    password: str = Field(..., example="adminpassword")
+    role: str = Field("user", example="admin")  # Requested login role ('user' or 'admin')
 
 class UserResponse(BaseModel):
     id: str
@@ -11,12 +16,14 @@ class UserResponse(BaseModel):
     role: str
     created_at: Optional[str] = None
 
+class AuthResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserResponse
+
 class MoodCreate(BaseModel):
-    userId: str = Field(..., example="usr-123")
-    username: Optional[str] = Field("Anonymous", example="john_doe")
-    role: str = Field("user", example="user")
     mood: str = Field(..., example="happy")  # 'happy', 'sad', 'neutral', 'angry', 'ecstatic', 'anxious'
-    note: Optional[str] = Field("", example="Feeling good today!")
+    note: Optional[str] = Field("", example="Feeling great today!")
 
 class MoodResponse(BaseModel):
     id: str

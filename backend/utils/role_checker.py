@@ -1,24 +1,49 @@
-from fastapi import HTTPException, Header, status
-from typing import Optional
+from fastapi import HTTPException, Depends, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from typing import Dict, Any
+from utils.security import decode_access_token
 
-def verify_role_header(x_user_role: Optional[str] = Header(None)) -> str:
-    """Validate role passed in HTTP headers."""
-    if not x_user_role:
-        return "user"  # Default fallback to basic user
-    role = x_user_role.lower()
-    if role not in ["user", "admin"]:
+security_scheme = HTTPBearer(auto_error=False)
+
+def get_current_user(auth: HTTPAuthorizationCredentials = Depends(security_scheme)) -> Dict[str, Any]:
+    """
+    Extract and validate JWT Access Token from HTTP Authorization header.
+    Returns user payload dictionary: { id, username, role }.
+    """
+    if not auth or not auth.credentials:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid role '{x_user_role}'. Role must be 'user' or 'admin'."
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication token required. Please log in.",
+            headers={"WWW-Authenticate": "Bearer"},
         )
-    return role
 
-def require_admin_role(x_user_role: Optional[str] = Header(None), role: Optional[str] = None):
-    """Enforce admin-only permission check."""
-    active_role = role or x_user_role or "user"
-    if active_role.lower() != "admin":
+    token = auth.credentials
+    payload = decode_access_token(token)
+    
+    user_id = payload.get("sub")
+    username = payload.get("username")
+    role = payload.get("role")
+
+    if not user_id or not username or not role:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload claims."
+        )
+
+    return {
+        "id": user_id,
+        "username": username,
+        "role": role
+    }
+
+def require_admin(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
+    """
+    Backend RBAC Enforcer: Requires caller to have 'admin' role.
+    Returns HTTP 403 Forbidden if non-admin user attempts access.
+    """
+    if current_user.get("role") != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied. Admin permissions required for this action."
+            detail="Access denied. Admin permissions required for this endpoint."
         )
-    return True
+    return current_user

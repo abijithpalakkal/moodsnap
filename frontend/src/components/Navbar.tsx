@@ -53,14 +53,14 @@ export const Navbar: React.FC<NavbarProps> = ({ currentUser, onLogout }) => {
               </div>
             </div>
 
-            {/* Logout / Switch Role */}
+            {/* Sign Out Button */}
             <button
               onClick={onLogout}
-              className="flex items-center space-x-1.5 text-xs font-semibold px-3 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-white/10 transition-all border border-white/10"
-              title="Switch Account or Logout"
+              className="flex items-center space-x-2 text-xs font-bold px-4 py-2 rounded-xl bg-red-500/20 text-red-300 hover:bg-red-500/30 hover:text-white transition-all border border-red-500/40 shadow-lg shadow-red-500/10 cursor-pointer"
+              title="Sign Out of Account"
             >
               <LogOut className="w-4 h-4 text-red-400" />
-              <span className="hidden sm:inline">Switch User</span>
+              <span>Sign Out</span>
             </button>
           </div>
         )}

@@ -1,16 +1,20 @@
-from fastapi import APIRouter, HTTPException, Query, Header, status
-from typing import List, Optional
+from fastapi import APIRouter, HTTPException, Depends, status
+from typing import List, Dict, Any
 from models.mood import MoodCreate, MoodResponse, UserResponse
 from database import DatabaseHandler
-from utils.role_checker import require_admin_role
+from utils.role_checker import get_current_user, require_admin
 
 router = APIRouter(prefix="/api", tags=["Moods"])
 
 @router.post("/moods", response_model=MoodResponse, status_code=status.HTTP_201_CREATED)
-def create_mood(entry: MoodCreate):
+def create_mood(
+    entry: MoodCreate,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
     """
     Create a new mood entry.
-    Accepts emoji mood, optional note, userId, username, and role.
+    Requires authenticated user (JWT Token).
+    Uses authenticated user ID, username, and role.
     """
     if not entry.mood:
         raise HTTPException(
@@ -19,9 +23,9 @@ def create_mood(entry: MoodCreate):
         )
 
     saved_entry = DatabaseHandler.create_mood(
-        user_id=entry.userId,
-        username=entry.username or "Anonymous",
-        role=entry.role or "user",
+        user_id=current_user["id"],
+        username=current_user["username"],
+        role=current_user["role"],
         mood=entry.mood,
         note=entry.note
     )
@@ -30,34 +34,29 @@ def create_mood(entry: MoodCreate):
 
 @router.get("/moods", response_model=List[MoodResponse])
 def get_moods(
-    userId: Optional[str] = Query(None, description="User ID to filter entries for non-admin users"),
-    role: Optional[str] = Query("user", description="User role: 'user' or 'admin'"),
-    x_user_role: Optional[str] = Header(None)
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
-    Retrieve mood entries timeline based on role:
-    - User role: Filtered by userId (Last 10 personal entries).
-    - Admin role: All system entries returned.
+    Get mood entries feed:
+    - User role: Filtered to last 10 personal entries for current_user["id"].
+    - Admin role: Full global entries feed for all users.
     """
-    active_role = (x_user_role or role or "user").lower()
+    user_id = current_user["id"]
+    role = current_user["role"]
     
-    entries = DatabaseHandler.get_moods(user_id=userId, role=active_role)
+    entries = DatabaseHandler.get_moods(user_id=user_id, role=role)
     return entries
 
 
 @router.delete("/moods/{mood_id}", status_code=status.HTTP_200_OK)
 def delete_mood(
     mood_id: str,
-    role: Optional[str] = Query("user", description="Caller role"),
-    x_user_role: Optional[str] = Header(None)
+    admin_user: Dict[str, Any] = Depends(require_admin)
 ):
     """
-    Delete a mood entry (Admin Only action).
-    Non-admin requests will be rejected with HTTP 403 Forbidden.
+    Delete a mood entry (Admin Only Action).
+    Non-admin tokens are rejected on the backend with HTTP 403 Forbidden.
     """
-    active_role = (x_user_role or role or "user").lower()
-    require_admin_role(role=active_role)
-
     success = DatabaseHandler.delete_mood(mood_id=mood_id)
     if not success:
         raise HTTPException(
@@ -69,14 +68,11 @@ def delete_mood(
 
 @router.get("/users", response_model=List[UserResponse])
 def list_users(
-    role: Optional[str] = Query("user"),
-    x_user_role: Optional[str] = Header(None)
+    admin_user: Dict[str, Any] = Depends(require_admin)
 ):
     """
-    Admin control: View list of registered users.
+    View registered users list (Admin Only Action).
+    Non-admin tokens are rejected on the backend with HTTP 403 Forbidden.
     """
-    active_role = (x_user_role or role or "user").lower()
-    require_admin_role(role=active_role)
-
     users = DatabaseHandler.get_all_users()
     return users

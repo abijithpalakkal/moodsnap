@@ -1,21 +1,22 @@
-from fastapi import APIRouter, Query, Header
-from typing import Optional
+from fastapi import APIRouter, Depends
+from typing import Dict, Any
 from models.mood import StatsResponse
 from database import DatabaseHandler
+from utils.role_checker import get_current_user
 
 router = APIRouter(prefix="/api", tags=["Statistics"])
 
 @router.get("/stats", response_model=StatsResponse)
 def get_statistics(
-    userId: Optional[str] = Query(None, description="User ID for personal stats scope"),
-    role: Optional[str] = Query("user", description="Caller role ('user' or 'admin')"),
-    x_user_role: Optional[str] = Header(None)
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
-    Get mood statistics breakdown:
-    - User role: Returns personal mood counts for the given userId.
+    Get mood analytics breakdown:
+    - User role: Returns personal mood counts for authenticated user.
     - Admin role: Returns global mood counts across all users.
     """
-    active_role = (x_user_role or role or "user").lower()
-    stats = DatabaseHandler.get_stats(user_id=userId, role=active_role)
+    user_id = current_user["id"]
+    role = current_user["role"]
+    
+    stats = DatabaseHandler.get_stats(user_id=user_id, role=role)
     return stats

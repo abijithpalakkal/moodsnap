@@ -12,6 +12,7 @@ import {
   MoodEntry,
   MoodStats,
   loginUser,
+  signUpUser,
   getMoods,
   createMood,
   deleteMood,
@@ -27,38 +28,45 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [authInitialized, setAuthInitialized] = useState(false);
 
-  // Restore user session from localStorage
+  // Restore user session & token from localStorage
   useEffect(() => {
     const savedUser = localStorage.getItem('moodsnap_user');
-    if (savedUser) {
+    const savedToken = localStorage.getItem('moodsnap_token');
+    if (savedUser && savedToken) {
       try {
         const parsed = JSON.parse(savedUser);
         setCurrentUser(parsed);
       } catch (err) {
-        console.error('Failed to parse saved user:', err);
+        console.error('Failed to parse saved user profile:', err);
+        localStorage.removeItem('moodsnap_user');
+        localStorage.removeItem('moodsnap_token');
       }
     }
     setAuthInitialized(true);
   }, []);
 
-  // Fetch data whenever user logs in or switches
+  // Fetch dashboard feeds
   const fetchData = async () => {
     if (!currentUser) return;
     setLoading(true);
     try {
       const [timelineData, statsData] = await Promise.all([
-        getMoods(currentUser.id, currentUser.role),
-        getStats(currentUser.id, currentUser.role),
+        getMoods(),
+        getStats(),
       ]);
       setEntries(timelineData);
       setStats(statsData);
 
       if (currentUser.role === 'admin') {
-        const allUsers = await getUsers(currentUser.role);
+        const allUsers = await getUsers();
         setUsersList(allUsers);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching dashboard data:', err);
+      // If token expired or 401 unauthorized, log user out
+      if (err.message && err.message.includes('401')) {
+        handleLogout();
+      }
     } finally {
       setLoading(false);
     }
@@ -70,15 +78,24 @@ export default function Home() {
     }
   }, [currentUser]);
 
-  const handleLogin = async (username: string, role: 'user' | 'admin') => {
-    const user = await loginUser(username, role);
-    setCurrentUser(user);
-    localStorage.setItem('moodsnap_user', JSON.stringify(user));
+  const handleLogin = async (username: string, password: string, role: 'user' | 'admin') => {
+    const res = await loginUser(username, password, role);
+    localStorage.setItem('moodsnap_token', res.access_token);
+    localStorage.setItem('moodsnap_user', JSON.stringify(res.user));
+    setCurrentUser(res.user);
+  };
+
+  const handleSignUp = async (username: string, password: string) => {
+    const res = await signUpUser(username, password);
+    localStorage.setItem('moodsnap_token', res.access_token);
+    localStorage.setItem('moodsnap_user', JSON.stringify(res.user));
+    setCurrentUser(res.user);
   };
 
   const handleLogout = () => {
-    setCurrentUser(null);
+    localStorage.removeItem('moodsnap_token');
     localStorage.removeItem('moodsnap_user');
+    setCurrentUser(null);
     setEntries([]);
     setStats(null);
     setUsersList([]);
@@ -86,13 +103,13 @@ export default function Home() {
 
   const handleCreateMood = async (mood: string, note: string) => {
     if (!currentUser) return;
-    await createMood(currentUser.id, currentUser.username, currentUser.role, mood, note);
+    await createMood(mood, note);
     await fetchData();
   };
 
   const handleDeleteMood = async (id: string) => {
     if (!currentUser) return;
-    await deleteMood(id, currentUser.role);
+    await deleteMood(id);
     await fetchData();
   };
 
@@ -109,7 +126,7 @@ export default function Home() {
       <Navbar currentUser={currentUser} onLogout={handleLogout} />
 
       {!currentUser ? (
-        <LoginModal onLogin={handleLogin} />
+        <LoginModal onLogin={handleLogin} onSignUp={handleSignUp} />
       ) : (
         <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 space-y-8 animate-in fade-in duration-500">
           
@@ -124,12 +141,12 @@ export default function Home() {
                 {currentUser.role === 'admin' ? '🛠 Admin Control Dashboard' : '👤 User Personal Dashboard'}
               </span>
               <h2 className="text-2xl sm:text-3xl font-extrabold text-white mt-2">
-                Hello, <span className="gradient-text">{currentUser.username}</span>!
+                Welcome back, <span className="gradient-text">{currentUser.username}</span>!
               </h2>
               <p className="text-xs sm:text-sm text-gray-400 mt-1">
                 {currentUser.role === 'admin' 
-                  ? 'You have global administrative access to monitor and manage all entries.' 
-                  : 'Track your daily feelings and keep a visual log of your emotional wellness.'}
+                  ? 'You hold system admin authority to monitor all entries & accounts.' 
+                  : 'Log your daily feelings with secure password & JWT token protection.'}
               </p>
             </div>
 
@@ -139,7 +156,7 @@ export default function Home() {
                 disabled={loading}
                 className="px-4 py-2 rounded-xl glass-panel hover:bg-white/10 border border-white/10 text-xs font-semibold text-white transition-all flex items-center gap-2"
               >
-                <span>{loading ? 'Syncing...' : 'Sync Data'}</span>
+                <span>{loading ? 'Syncing...' : '🔄 Sync Data'}</span>
               </button>
             </div>
           </div>
@@ -178,7 +195,7 @@ export default function Home() {
       )}
 
       <footer className="py-6 text-center text-xs text-gray-500 border-t border-white/5 mt-auto">
-        MoodSnap &copy; 2026 — Built with Next.js, FastAPI & Supabase (PostgreSQL)
+        MoodSnap &copy; 2026 — Next.js, FastAPI, JWT & Supabase (PostgreSQL)
       </footer>
     </div>
   );
